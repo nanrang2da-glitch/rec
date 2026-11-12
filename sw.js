@@ -1,5 +1,5 @@
 // 앱 화면을 휴대폰에 저장해 두어 즉시 열리게 합니다. (녹음/업로드 요청은 캐시하지 않음)
-const CACHE = 'rec-v1';
+const CACHE = 'rec-v2';
 const SHELL = ['./', 'index.html', 'app.js', 'recorder-worklet.js', 'lame.min.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

@@ -456,6 +456,12 @@ async function processQueue() {
           if (sheetSessionId === s.id) $('uploadStatus').textContent = 'Drive 업로드 완료 ✓';
           renderList();
         }
+        // 제목 입력 화면을 닫지 않고 앱을 나가 버린 녹음은 기본값(마지막 종류, 날짜·시간 제목)으로 분석 요청
+        if (s.status === 'uploaded' && !s.metaReady && sheetSessionId !== s.id) {
+          s.kind = s.kind || store.get('lastKind', '수업');
+          s.metaReady = true;
+          await putSession(s);
+        }
         if (s.status === 'uploaded' && s.metaReady) {
           await api('done', {
             fileId: s.driveFileId, title: s.title || '', kind: s.kind || '수업',
@@ -463,6 +469,7 @@ async function processQueue() {
           });
           s.status = 'sent';
           s.sentAt = Date.now();
+          s.lastError = null;
           await putSession(s);
           await deleteChunks(s.id); // Drive에 안전하게 올라갔으니 휴대폰 사본 삭제
           renderList();
@@ -508,7 +515,7 @@ async function renderList() {
 function badgeFor(s) {
   if (s.status === 'recording') return ['wait', '녹음 중단됨'];
   if (s.status === 'stopped') return ['wait', s.lastError ? '업로드 재시도 대기' : '업로드 대기'];
-  if (s.status === 'uploaded') return ['wait', '분석 요청 대기'];
+  if (s.status === 'uploaded') return ['wait', s.lastError ? '분석 요청 재시도 대기' : '분석 요청 대기'];
   const j = serverStatus[s.driveFileId];
   if (!j) return ['wait', '분석 대기'];
   if (j.step === 'done') return ['link', '문서 열기', j.docUrl];
@@ -537,6 +544,10 @@ function drawList(sessions) {
     b.className = 'badge ' + (cls === 'link' ? '' : cls);
     b.textContent = label;
     if (cls === 'err') b.title = (serverStatus[s.driveFileId] || {}).error || '';
+    if (s.lastError && s.status !== 'sent') {
+      b.style.cursor = 'pointer';
+      b.onclick = () => { toast('마지막 오류: ' + s.lastError + ' · 다시 시도할게요', 5000); processQueue(); };
+    }
     li.append(left, b);
     ul.appendChild(li);
   }
@@ -590,7 +601,7 @@ $('settingsBtn').addEventListener('click', () => {
 });
 $('closeSettingsBtn').addEventListener('click', () => $('settingsSheet').classList.add('hidden'));
 function readSettingsForm() {
-  return { url: $('urlInput').value.trim(), key: $('keyInput').value.trim() };
+  return { url: $('urlInput').value.trim(), key: $('keyInput').value.replace(/\s/g, '') };
 }
 $('saveSettingsBtn').addEventListener('click', () => {
   store.set('settings', readSettingsForm());
